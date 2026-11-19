@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KANLI AY — 3D Kuş Bakışı Kurt vs Köylü</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <!-- 3D WebGL Oyun Canvas'ı ve Üst Katman HUD/Sis Canvas'ı -->
+  <canvas id="webgl-canvas"></canvas>
+  <canvas id="game-canvas"></canvas>
+  <div id="terror-vignette"></div>
+  <div id="damage-flash"></div>
+
+  <!-- ================= LOBİ EKRANI ================= -->
+  <div id="lobby-screen">
+    <div class="lobby-shell">
+      <div class="lobby-header">
+        <div>
+          <div class="brand-title">KANLI AY</div>
+          <div class="brand-sub">3D Kuş Bakışı Asimetrik Hayatta Kalma &bull; 1 Kurt vs 4 Köylü &bull; Düşük Gecikmeli WebSocket</div>
+        </div>
+        <div class="header-right">
+          <div id="net-pill" class="net-pill">
+            <span class="net-dot"></span>
+            <span id="net-status-text">Sunucuya bağlanıyor...</span>
+          </div>
+          <button id="btn-open-ai-lobby" class="btn btn-outline btn-sm" type="button">
+            🔒 Admin: AI Görsel
+          </button>
+        </div>
+      </div>
+
+      <div class="lobby-grid">
+        <!-- Sol Kolon: Kimlik & Rol Seçimi -->
+        <div class="panel-card">
+          <div class="section-label">1. Oyuncu &amp; Rol Seçimi</div>
+          <div class="form-row">
+            <div class="field-group">
+              <label for="player-name">Oyuncu Adı</label>
+              <input id="player-name" class="gothic-input" type="text" maxlength="16" value="Avcı" />
+            </div>
+            <div class="field-group">
+              <label for="room-code">Oda Kodu (Arkadaşlarınla Aynı Kodu Gir)</label>
+              <input id="room-code" class="gothic-input" type="text" maxlength="16" value="KANLI-AY" />
+            </div>
+          </div>
+
+          <div class="role-cards">
+            <div class="role-card" data-role="werewolf">
+              <img id="preview-role-wolf" class="role-preview" src="/assets/sprites/werewolf.png" alt="Kurt" />
+              <div class="role-name">🐺 KURT</div>
+              <div class="role-desc">Köylüleri avla, kan izi sür, kafese hapset.</div>
+            </div>
+            <div class="role-card active" data-role="villager">
+              <img id="preview-role-villager" class="role-preview" src="/assets/sprites/villager.png" alt="Köylü" />
+              <div class="role-name">🏮 KÖYLÜ</div>
+              <div class="role-desc">5 Tılsımı onar, barikat devir, kapıdan kaç.</div>
+            </div>
+            <div class="role-card" data-role="random">
+              <div class="role-icon-fallback">🎲</div>
+              <div class="role-name">RASTGELE</div>
+              <div class="role-desc">Kaderine razı ol (Kurt veya Köylü).</div>
+            </div>
+          </div>
+
+          <div class="controls-summary">
+            <strong>Kontroller:</strong>
+            <kbd>W A S D</kbd> Hareket &bull;
+            <kbd>Shift</kbd> Koş (Kurt koşu izi görür!) &bull;
+            <kbd>E</kbd> Etkileşim (Tılsım Onar / Barikat / Dolap / Kurtar) &bull;
+            <kbd>Space</kbd> / <kbd>Sol Tık</kbd> Skill Check &amp; Kurt Pençesi &bull;
+            <kbd>Q</kbd> Özel Yetenek (Uluma / Gümüş Fener) &bull;
+            <kbd>R</kbd> Kurt İçgüdüsü
+          </div>
+        </div>
+
+        <!-- Sağ Kolon: Oda Sistemi & Başlat -->
+        <div class="panel-card">
+          <div class="section-label">2. Oda Sistemi &amp; Oyuncu Kadrosu</div>
+
+          <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+            <button id="btn-create-room" class="btn btn-gold btn-sm" type="button" style="flex:1;">➕ Yeni Oda Oluştur</button>
+            <button id="btn-join-room" class="btn btn-outline btn-sm" type="button" style="flex:1;">🔑 Koda Katıl</button>
+            <button id="btn-copy-invite" class="btn btn-outline btn-sm" type="button">🔗 Davet Linki</button>
+          </div>
+
+          <div class="form-row" style="margin-bottom:10px;">
+            <div class="field-group">
+              <label for="room-mode">Oda Modu</label>
+              <select id="room-mode" class="gothic-select">
+                <option value="bots" selected>🤖 Eksikleri AI Botlarla Tamamla</option>
+                <option value="humans">👥 Sadece Oyuncular (Kendi Aramızda - Botsuz)</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label for="bot-difficulty">AI Bot Zorluğu</label>
+              <select id="bot-difficulty" class="gothic-select">
+                <option value="normal" selected>Normal (Dengeli Gerilim)</option>
+                <option value="hard">Zorlu (Kurnaz Kurt &amp; Hızlı Köylü)</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="lobby-players" class="roster-list"></div>
+
+          <button id="btn-start-match" class="btn btn-crimson" type="button">
+            🌑 MAÇI BAŞLAT
+          </button>
+          <div id="guest-wait-note" class="brand-sub hidden" style="text-align:center; margin-top:8px;">
+            Oda sahibinin maçı başlatması bekleniyor...
+          </div>
+
+          <div class="section-label" style="margin-top:14px; margin-bottom:8px;">🌐 Aktif Odalar</div>
+          <div id="active-rooms-list" class="rooms-browser"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= OYUN İÇİ HUD ================= -->
+  <div id="game-hud" class="hidden">
+    <div class="hud-top-left">
+      <div class="objective-box">
+        <div id="obj-title" class="obj-title">🔮 Onarılacak Tılsım: 5</div>
+        <div id="obj-sub" class="obj-sub">Kutsal tılsımları onararak kuzey veya güney çıkış kapısını aç.</div>
+      </div>
+    </div>
+
+    <div class="hud-top-right hud-interactive">
+      <div id="perf-pill" class="perf-pill">60 FPS &bull; 1 ms</div>
+      <button id="btn-cam-mode" class="btn btn-outline btn-sm" type="button" title="Kamera Açısı (V)">🎥 Kamera: Açılı</button>
+      <button id="btn-mute" class="btn btn-outline btn-sm" type="button" title="Sesi Aç/Kapat">🔊 Ses</button>
+      <button id="btn-open-ai-hud" class="btn btn-outline btn-sm hidden" type="button">🎨 AI Görsel</button>
+      <button id="btn-leave-match" class="btn btn-outline btn-sm" type="button">Çıkış</button>
+    </div>
+
+    <div id="hud-toast-wrap" class="hud-toast-wrap"></div>
+
+    <div id="hud-survivors" class="hud-bottom-left"></div>
+
+    <div class="hud-bottom-center">
+      <div id="action-prompt" class="prompt-pill hidden">[E] Etkileşim</div>
+      <div id="channel-wrap" class="channel-wrap hidden">
+        <div class="channel-label">
+          <span id="channel-name">Tılsım Onarılıyor...</span>
+          <span id="channel-pct">0%</span>
+        </div>
+        <div class="channel-bar">
+          <div id="channel-fill" class="channel-fill" style="width:0%"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Skill Check Rotary Dial -->
+    <div id="skill-check-overlay" class="hidden">
+      <canvas id="skill-check-canvas" width="190" height="190"></canvas>
+      <div class="sc-hint">SPACE tuşuna bas veya tıkla!</div>
+    </div>
+
+    <div class="hud-bottom-right">
+      <div id="perk-row" class="perk-row"></div>
+      <div class="minimap-wrap">
+        <canvas id="minimap-canvas" width="164" height="124"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MAÇ SONU EKRANI ================= -->
+  <div id="gameover-screen" class="hidden">
+    <div class="gameover-box">
+      <div id="gameover-title" class="gameover-title">MAÇ SONA ERDİ</div>
+      <div id="gameover-subtitle" class="brand-sub"></div>
+      <table class="score-table">
+        <thead>
+          <tr>
+            <th>Oyuncu</th>
+            <th>Rol</th>
+            <th>Durum</th>
+            <th>Puan</th>
+          </tr>
+        </thead>
+        <tbody id="gameover-tbody"></tbody>
+      </table>
+      <div style="display:flex; gap:12px; justify-content:center;">
+        <button id="btn-rematch" class="btn btn-crimson" style="width:auto; padding:12px 28px;" type="button">
+          🔄 Lobiye Dön / Tekrar Oyna
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= AI GÖRSEL & PROMPT REHBERİ MODALI ================= -->
+  <div id="ai-modal" class="modal-backdrop hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div>
+          <div class="section-label" style="margin-bottom:2px;">🎨 AI Görsel Özelleştir &amp; Dış AI Prompt Rehberi</div>
+          <div class="brand-sub">Leonardo.ai, PixelLab.ai veya Midjourney ile ürettiğin görselleri anında oyuna sürükle-bırak.</div>
+        </div>
+        <button id="btn-close-ai-modal" class="btn btn-outline btn-sm" type="button">✕ Kapat</button>
+      </div>
+
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="upload" type="button">📁 Admin Sprite Yönetimi</button>
+        <button class="tab-btn" data-tab="prompts" type="button">📋 Hazır AI Promptları</button>
+      </div>
+
+      <div id="tab-upload">
+        <div id="admin-lock-bar" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; padding:10px 12px; margin-bottom:12px; border-radius:8px; background:rgba(220,38,38,0.1); border:1px solid rgba(220,38,38,0.4);">
+          <div id="admin-status-badge" style="font-size:0.85rem; font-weight:700; color:#fca5a5;">
+            🔒 Görselleri yalnızca Admin değiştirebilir
+          </div>
+          <div id="admin-login-controls" style="display:flex; gap:8px; align-items:center;">
+            <input id="admin-pass-input" class="gothic-input" type="password" placeholder="Admin şifresi" style="width:170px; padding:6px 10px; font-size:0.84rem;" />
+            <button id="btn-admin-unlock" class="btn btn-gold btn-sm" type="button">🔓 Yetki Aç</button>
+          </div>
+        </div>
+
+        <div id="admin-upload-area" class="admin-locked">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; gap:10px; flex-wrap:wrap;">
+            <label style="font-size:0.84rem; display:flex; align-items:center; gap:8px; cursor:pointer;">
+              <input id="auto-chroma-chk" type="checkbox" checked />
+              Yüklenen görsellerin yeşil (#00FF00) veya düz arka planını otomatik temizle
+            </label>
+            <button id="btn-reset-sprites" class="btn btn-outline btn-sm" type="button">Varsayılan AI Görsellere Dön</button>
+          </div>
+
+          <div class="sprite-grid" id="sprite-drop-grid">
+          <div class="sprite-drop-card" data-sprite="werewolf">
+            <strong>🐺 Kurt (Werewolf)</strong>
+            <img id="modal-img-werewolf" src="/assets/sprites/werewolf.png" alt="Kurt" />
+            <input type="file" accept="image/*" class="hidden" />
+            <button class="btn btn-outline btn-sm upload-trigger" type="button">Görsel Seç / Sürükle</button>
+          </div>
+          <div class="sprite-drop-card" data-sprite="villager">
+            <strong>🏮 Köylü (Villager)</strong>
+            <img id="modal-img-villager" src="/assets/sprites/villager.png" alt="Köylü" />
+            <input type="file" accept="image/*" class="hidden" />
+            <button class="btn btn-outline btn-sm upload-trigger" type="button">Görsel Seç / Sürükle</button>
+          </div>
+          <div class="sprite-drop-card" data-sprite="totem">
+            <strong>🔮 Kutsal Tılsım</strong>
+            <img id="modal-img-totem" src="/assets/sprites/totem.png" alt="Tılsım" />
+            <input type="file" accept="image/*" class="hidden" />
+            <button class="btn btn-outline btn-sm upload-trigger" type="button">Görsel Seç / Sürükle</button>
+          </div>
+          <div class="sprite-drop-card" data-sprite="cage">
+            <strong>⛓️ Kurban Kafesi</strong>
+            <img id="modal-img-cage" src="/assets/sprites/cage.png" alt="Kafes" />
+            <input type="file" accept="image/*" class="hidden" />
+            <button class="btn btn-outline btn-sm upload-trigger" type="button">Görsel Seç / Sürükle</button>
+          </div>
+          <div class="sprite-drop-card" data-sprite="ground">
+            <strong>🌲 Zemin Tileset</strong>
+            <img id="modal-img-ground" src="/assets/sprites/ground_tile.png" alt="Zemin" />
+            <input type="file" accept="image/*" class="hidden" />
+            <button class="btn btn-outline btn-sm upload-trigger" type="button">Görsel Seç / Sürükle</button>
+          </div>
+        </div>
+        </div>
+      </div>
+
+      <div id="tab-prompts" class="hidden">
+        <div class="prompt-card">
+          <h4><span>1. Leonardo.ai (Karanlık Gotik 2D Sprite — Transparent PNG açık kullanın)</span> <button class="btn btn-gold btn-sm copy-prompt" type="button">Kopyala</button></h4>
+          <div class="prompt-code">Top-down orthographic 2D game sprite of a terrifying dark gothic werewolf monster seen directly from above, dark fur, glowing crimson eyes, outstretched claws, Darkwood and Don't Starve hand-drawn dark gothic art style, isolated centered on solid #00FF00 background, no drop shadow, clean sharp edges</div>
+        </div>
+        <div class="prompt-card">
+          <h4><span>2. Leonardo.ai (Köylü Kurban — Fenerli)</span> <button class="btn btn-gold btn-sm copy-prompt" type="button">Kopyala</button></h4>
+          <div class="prompt-code">Top-down orthographic 2D game sprite of a medieval gothic villager survivor seen directly from above, wearing a tattered dark hooded cloak and holding a warm glowing iron lantern, Darkwood hand-drawn dark horror art style, isolated centered on solid #00FF00 background, clean edges</div>
+        </div>
+        <div class="prompt-card">
+          <h4><span>3. PixelLab.ai (Çok Yönlü Sprite Sheet İçin)</span> <button class="btn btn-gold btn-sm copy-prompt" type="button">Kopyala</button></h4>
+          <div class="prompt-code">Top-down 2D dark fantasy horror werewolf / hooded villager with lantern, 4-directional walking animation, gothic palette, crisp silhouette, transparent background</div>
+        </div>
+        <div class="prompt-card">
+          <h4><span>4. Midjourney v6.1 (Kusursuz Tekrar Eden Orman Zemin Tileset)</span> <button class="btn btn-gold btn-sm copy-prompt" type="button">Kopyala</button></h4>
+          <div class="prompt-code">Top-down orthographic seamless 2D game texture of a dark gothic forest floor, damp dark soil, mossy ancient cobblestones, dead roots and fallen leaves, Darkwood hand-drawn horror game style, flat lighting --tile</div>
+        </div>
+        <div class="prompt-card">
+          <h4><span>5. Recraft V3 (Dead by Daylight Tarzı Perk / Yetenek İkonu)</span> <button class="btn btn-gold btn-sm copy-prompt" type="button">Kopyala</button></h4>
+          <div class="prompt-code">Dead by Daylight style gothic horror perk icon inside a dark diamond frame, silver lantern beam piercing darkness, minimal high-contrast chalk and ink engraving style, dark obsidian background</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/three.min.js"></script>
+  <script src="/js/renderer3d.js"></script>
+  <script src="/js/audio.js"></script>
+  <script src="/js/game.js"></script>
+</body>
+</html>
